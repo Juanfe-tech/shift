@@ -707,6 +707,8 @@ button:disabled{opacity:0.35;cursor:not-allowed}
   color:var(--ink);
   line-height:1.35;
   letter-spacing:-0.005em;
+  white-space:pre-line;
+  overflow-wrap:anywhere;
   transition:all 0.5s var(--out-expo);
 }
 .practice-row.done .practice-text{
@@ -742,6 +744,9 @@ button:disabled{opacity:0.35;cursor:not-allowed}
   padding:0;
   margin:0;
   resize:none;
+  overflow:hidden;
+  display:block;
+  min-height:1.35em;
   -webkit-appearance:none;
   appearance:none;
 }
@@ -3346,6 +3351,125 @@ button:disabled{opacity:0.35;cursor:not-allowed}
 }
 
 /* ════════════════════════════════════════════════
+   NOTES — the diary. Optional, dated, quiet.
+   Reuses the Log's write zone; entries are paper-like
+   cards in serif, grouped by calendar date.
+   ════════════════════════════════════════════════ */
+.notes-write-mark{
+  font-family:'Fraunces',serif;font-style:italic;font-size:12px;
+  color:var(--muted);
+  margin-bottom:12px;letter-spacing:0.04em;
+  display:flex;align-items:center;gap:8px;
+}
+.notes-write-mark::before{
+  content:'';width:7px;height:7px;border-radius:999px;
+  background:var(--soft);
+}
+.notes-write-box{min-height:150px;}
+.notes-write-area{
+  font-family:'Fraunces',serif;font-weight:400;font-size:15.5px;
+  line-height:1.65;letter-spacing:-0.005em;
+}
+.notes-write-area::placeholder{font-size:14.5px;}
+
+/* Date markers in archive */
+.notes-date-marker{
+  font-family:'Fraunces',serif;font-weight:400;
+  font-size:12px;color:var(--ink);
+  margin-bottom:12px;margin-top:22px;
+  display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  padding-bottom:6px;
+  border-bottom:1px solid var(--hair-soft);
+}
+.notes-date-marker:first-of-type{margin-top:0}
+.notes-date-day{font-style:italic;font-size:10.5px;color:var(--muted);font-weight:400;}
+
+/* Entry — paper card */
+.notes-entry{
+  margin-bottom:10px;
+  padding:18px 20px 16px;
+  background:var(--white-soft);
+  border:1px solid var(--hair);
+  border-radius:18px;
+  box-shadow:0 1px 3px rgba(15,14,12,0.04);
+  position:relative;
+  transition:all 0.4s var(--out-expo);
+}
+.notes-entry:hover{transform:translateX(2px)}
+.notes-entry-time{
+  font-family:'Fraunces',serif;font-style:italic;font-size:10px;
+  color:var(--muted);margin-bottom:8px;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.notes-entry-text{
+  font-family:'Fraunces',serif;font-weight:400;font-size:14.5px;
+  color:var(--ink-soft);line-height:1.65;letter-spacing:-0.005em;
+  white-space:pre-line;
+}
+.notes-entry-text.clamped{
+  display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;
+  overflow:hidden;
+}
+.notes-entry-more{
+  margin-top:8px;
+  font-family:'Fraunces',serif;font-style:italic;font-size:11.5px;
+  color:var(--muted);
+  background:none;border:none;padding:0;cursor:pointer;
+}
+.notes-entry-delete{
+  font-family:'Fraunces',serif;font-style:italic;font-size:10px;
+  color:var(--soft);
+  background:none;border:none;padding:0 0 0 12px;cursor:pointer;
+}
+.notes-entry-delete:hover{color:var(--copper-deep, #B5735A)}
+
+/* Search — only present once there are 8+ notes */
+.notes-search{
+  display:flex;align-items:center;gap:12px;
+  padding:0 2px;margin-bottom:6px;
+  border-bottom:1px solid var(--hair-soft);
+}
+.notes-search-input{
+  flex:1;border:none;background:transparent;outline:none;
+  font-family:'Fraunces',serif;font-style:italic;font-size:13.5px;
+  color:var(--ink);padding:10px 0;
+  -webkit-appearance:none;appearance:none;
+}
+.notes-search-input::placeholder{color:var(--soft);font-style:italic}
+.notes-search-input::-webkit-search-cancel-button{-webkit-appearance:none}
+.notes-search-count{
+  font-family:'Fraunces',serif;font-style:italic;font-size:11px;
+  color:var(--muted);flex-shrink:0;
+}
+
+/* Goal card — editable in place */
+.goal-card.editing{cursor:default}
+.goal-card{cursor:pointer}
+.goal-edit-area{
+  width:100%;border:none;background:transparent;outline:none;
+  font-family:'Fraunces',serif;font-weight:400;font-size:17px;
+  color:var(--ink);line-height:1.55;letter-spacing:-0.01em;
+  resize:none;padding:0;position:relative;
+  overflow:hidden;
+}
+.goal-edit-actions{
+  display:flex;justify-content:flex-end;gap:14px;
+  margin-top:12px;position:relative;
+}
+.goal-edit-hint{
+  font-family:'Fraunces',serif;font-style:italic;font-size:10.5px;
+  color:var(--soft);margin-top:10px;position:relative;
+  text-align:right;
+}
+.goal-btn{
+  font-family:'Fraunces',serif;font-style:italic;font-size:12.5px;
+  background:none;border:none;padding:0;cursor:pointer;
+  color:var(--muted);
+}
+.goal-btn.primary{color:var(--ink);font-weight:500}
+.goal-btn:disabled{opacity:0.35;cursor:not-allowed}
+
+/* ════════════════════════════════════════════════
    THREE RITUALS — Morning + Evening + Emotions
    New cluster wrapper with eyebrow
    ════════════════════════════════════════════════ */
@@ -4577,6 +4701,19 @@ const haptic = (pattern) => {
   if(navigator.vibrate) try{ navigator.vibrate(pattern); }catch{}
 };
 
+// autoGrow — a textarea that shows everything you wrote, never a scrollbar inside.
+const autoGrow = (el) => {
+  if(!el) return;
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+};
+
+// Calendar date label for diary entries — "Wednesday, September 30"
+const fmtLongDate = (iso) => {
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'});
+};
+
 /* ════════════════════════════════════════════════
    CONTENT — preserved from v5
    ════════════════════════════════════════════════ */
@@ -5725,7 +5862,8 @@ const Onboarding = ({onComplete}) => {
     e('textarea', {
       className:'onb-vision-textarea',
       value: goal,
-      onInput: ev => setGoal(ev.target.value),
+      onInput: ev => { setGoal(ev.target.value); autoGrow(ev.target); },
+      ref: el => { if(el) autoGrow(el); },
       placeholder: "I wake at 5am without an alarm.\nMy body, my bank, my calendar — all show it.\nI hold standards I used to admire in others.\nI no longer recognize the version that hesitated.",
       autoComplete:'off', autoCorrect:'on', spellCheck:true,
       rows:4,
@@ -5738,7 +5876,7 @@ const Onboarding = ({onComplete}) => {
         borderRadius:18,
         background:'transparent', outline:'none',
         width:'100%', display:'block', resize:'none',
-        flexShrink:0,
+        flexShrink:0, overflow:'hidden',
       }
     }),
 
@@ -5893,11 +6031,22 @@ const Onboarding = ({onComplete}) => {
    ════════════════════════════════════════════════ */
 const Dashboard = ({
   data, onNav, todayActions, actionStates, actionSealedAt, carriedStates, onToggle, onNameAction,
-  onMorning, onEvening, onLesson,
+  onMorning, onEvening, onLesson, onSaveGoal,
   insight, morningDone, eveningDone, lessonRead,
   currentDay, con, act, clean, liveStreak,
   todayPractice, todayLesson, todayRituals
 }) => {
+  // Goal — editable in place. Tap the card, write, keep.
+  const [goalEditing, setGoalEditing] = useState(false);
+  const [goalDraft, setGoalDraft] = useState(data.goal || '');
+  const startGoalEdit = () => { setGoalDraft(data.goal || ''); setGoalEditing(true); haptic(4); };
+  const keepGoal = () => {
+    const t = goalDraft.trim();
+    if(!t) return;
+    onSaveGoal && onSaveGoal(t);
+    setGoalEditing(false);
+    haptic(8);
+  };
   const today = new Date();
   const hour = today.getHours();
   const greeting = hour < 5 ? 'Still here'
@@ -6142,9 +6291,31 @@ const Dashboard = ({
     // The why sits below the rituals — a final breath
     // ════════════════════════════════════════════════
     data.goal && data.goal.trim() && div({className:'m5'},
-      div({className:'goal-card'},
+      div({
+        className:`goal-card ${goalEditing ? 'editing' : ''}`,
+        onClick: goalEditing ? undefined : startGoalEdit
+      },
         div({className:'goal-eyebrow'}, "what you're becoming"),
-        div({className:'goal-text'}, `“${data.goal}”`)
+        goalEditing
+          ? fr(
+              ta({
+                className:'goal-edit-area',
+                value:goalDraft,
+                autoFocus:true,
+                rows:3,
+                onInput: ev => { setGoalDraft(ev.target.value); autoGrow(ev.target); },
+                ref: el => { if(el) autoGrow(el); },
+                onClick: ev => ev.stopPropagation(),
+              }),
+              div({className:'goal-edit-actions'},
+                btn({className:'goal-btn', onClick: ev => { ev.stopPropagation(); setGoalEditing(false); }}, 'cancel'),
+                btn({className:'goal-btn primary', disabled:!goalDraft.trim(), onClick: ev => { ev.stopPropagation(); keepGoal(); }}, 'keep')
+              )
+            )
+          : fr(
+              div({className:'goal-text'}, `“${data.goal}”`),
+              div({className:'goal-edit-hint'}, 'tap to refine')
+            )
       )
     ),
 
@@ -6285,12 +6456,13 @@ const PracticeRow = ({done, text, onToggle, onNameChange, carried, idx}) => {
       carried && div({className:'practice-eyebrow'}, 'unsealed · from yesterday'),
       carried
         ? div({className:'practice-text'}, text)
-        : e('input', {
+        : e('textarea', {
             className:'practice-text-input',
-            type:'text',
+            rows:1,
             value: draft,
             placeholder: 'name a practice for today',
-            onInput: ev => setDraft(ev.target.value),
+            onInput: ev => { setDraft(ev.target.value); autoGrow(ev.target); },
+            ref: el => { if(el) autoGrow(el); },
             onBlur: commitNameOnBlur,
             onKeyDown: ev => {
               if(ev.key === 'Enter'){
@@ -8912,6 +9084,127 @@ const Settings = ({data, onSave, onBack, onReset, onImport}) => {
 };
 
 /* ════════════════════════════════════════════════
+   NOTES — the diary
+   Optional. Never asked for. When you write, the date stays with it.
+   Entries: data.notes = [{text, at, day}]
+   ════════════════════════════════════════════════ */
+const Notes = ({data, onSave, onDelete, currentDay}) => {
+  const [draft, setDraft] = useState('');
+  const [expanded, setExpanded] = useState({});
+  const [confirmDel, setConfirmDel] = useState(null);
+  const [query, setQuery] = useState('');
+
+  const entries = data.notes || [];
+  const total = entries.length;
+  // Search appears only once there is something worth searching
+  const searchable = total >= 8;
+  const q = query.trim().toLowerCase();
+  const visible = (searchable && q) ? entries.filter(en => en.text.toLowerCase().includes(q)) : entries;
+
+  // Group by calendar date (local), newest first
+  const byDate = useMemo(() => {
+    const groups = {};
+    [...visible].reverse().forEach(en => {
+      const d = new Date(en.at);
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      if(!groups[key]) groups[key] = {label: fmtLongDate(en.at), day: en.day, items: []};
+      groups[key].items.push(en);
+    });
+    return groups;
+  }, [visible]);
+
+  const fmtTime = (iso) => new Date(iso).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'}).toLowerCase();
+
+  const keep = () => {
+    const t = draft.trim();
+    if(!t) return;
+    onSave({text:t, at:new Date().toISOString(), day:currentDay || 1});
+    setDraft('');
+    haptic(8);
+  };
+
+  const todayKey = todayISO();
+
+  return Screen({stagger:true},
+    div({className:'log-home-head'},
+      div({className:'log-home-top'},
+        div({className:'log-home-meta'}, fmtLongDate(new Date().toISOString())),
+      ),
+      div({className:'log-home-title'}, 'Your ', e('em',null,'notes'), '.'),
+      div({className:'log-home-count'},
+        total === 0 ? 'nothing written yet — and that is fine'
+                    : `${total} ${total === 1 ? 'note' : 'notes'} kept`)
+    ),
+
+    div({className:'log-write'},
+      div({className:'notes-write-mark'}, 'write when you want to'),
+      div({className:'log-write-box notes-write-box'},
+        ta({
+          className:'log-write-area notes-write-area',
+          rows:5,
+          value:draft,
+          placeholder:'A reflection. A note to yourself. Nothing is required here.',
+          onInput: ev => { setDraft(ev.target.value); autoGrow(ev.target); },
+          style:{overflow:'hidden'},
+        })
+      ),
+      div({className:'log-write-actions'},
+        btn({className:'log-btn-primary', onClick:keep, disabled:!draft.trim()}, 'Keep')
+      )
+    ),
+
+    div({className:'log-archive'},
+      searchable && div({className:'notes-search'},
+        e('input', {
+          className:'notes-search-input',
+          type:'search',
+          value:query,
+          placeholder:'find a note',
+          onInput: ev => setQuery(ev.target.value),
+          autoComplete:'off', autoCorrect:'off', spellCheck:false,
+        }),
+        q && span({className:'notes-search-count'}, `${visible.length} found`)
+      ),
+      total === 0 && div({className:'log-empty'},
+        'Your notes collect here, each with the day it was written. Come back whenever.'
+      ),
+      total > 0 && visible.length === 0 && div({className:'log-empty'}, 'Nothing matches that.'),
+      ...Object.keys(byDate)
+        .sort((a,b) => b.localeCompare(a))
+        .map(key => {
+          const g = byDate[key];
+          const isToday = key === todayKey;
+          return div({key},
+            div({className:'notes-date-marker'},
+              span(null, g.label),
+              span({className:'notes-date-day'}, isToday ? 'today' : `day ${g.day || '?'}`)
+            ),
+            ...g.items.map((en, i) => {
+              const id = en.at;
+              const isLong = en.text.length > 420 || (en.text.match(/\n/g) || []).length > 6;
+              const open = !!expanded[id];
+              return div({key:id, className:'notes-entry'},
+                div({className:'notes-entry-time'},
+                  span(null, fmtTime(en.at)),
+                  confirmDel === id
+                    ? span(null,
+                        btn({className:'notes-entry-delete', onClick:()=>{ onDelete(en.at); setConfirmDel(null); haptic(10); }}, 'delete'),
+                        btn({className:'notes-entry-delete', onClick:()=>setConfirmDel(null)}, 'keep')
+                      )
+                    : btn({className:'notes-entry-delete', onClick:()=>setConfirmDel(id)}, '···')
+                ),
+                div({className:`notes-entry-text ${isLong && !open ? 'clamped' : ''}`}, en.text),
+                isLong && btn({className:'notes-entry-more', onClick:()=>setExpanded({...expanded, [id]:!open})},
+                  open ? 'less' : 'read more')
+              );
+            })
+          );
+        })
+    )
+  );
+};
+
+/* ════════════════════════════════════════════════
    BOTTOM NAV
    ════════════════════════════════════════════════ */
 const BottomNav = ({view, onNav}) => {
@@ -8920,6 +9213,7 @@ const BottomNav = ({view, onNav}) => {
     {k:'wisdom',   icon:'◇', label:'Wisdom'},
     {k:'journal',  icon:'△', label:'Log'},
     {k:'progress', icon:'◐', label:'Arc'},
+    {k:'notes',    icon:'□', label:'Notes'},
   ];
   return div({className:'bnav'},
     ...items.map(it => {
@@ -9330,7 +9624,7 @@ const App = () => {
     r.readAsText(file);
   };
 
-  const mainViews = ['home','progress','wisdom','journal'];
+  const mainViews = ['home','progress','wisdom','journal','notes'];
   const showNav = mainViews.includes(view) && data.onboarded;
 
   // Onboarding gate
@@ -9358,6 +9652,7 @@ const App = () => {
       onMorning: () => setView('morning'),
       onEvening: () => setView('evening'),
       onLesson:  () => { markLessonRead(); setView('lesson'); },
+      onSaveGoal: g => persist({...data, goal:g}),
       insight, morningDone, eveningDone, lessonRead: !!(todayCi && todayCi.lessonRead),
       currentDay, con, act, clean, liveStreak,
       todayPractice, todayLesson, todayRituals
@@ -9378,6 +9673,10 @@ const App = () => {
       currentDay,
     }),
     view === 'journal' && e(Log,  {data, currentDay, onSave: j => persist({...data, journal:[...(data.journal||[]), j]}), onBack: () => setView('home')}),
+    view === 'notes'   && e(Notes,{data, currentDay,
+      onSave: n => persist({...data, notes:[...(data.notes||[]), n]}),
+      onDelete: at => persist({...data, notes:(data.notes||[]).filter(x => x.at !== at)})
+    }),
     view === 'progress'&& e(Progress, {data, onBack: () => setView('home'), currentDay, identityScore, con, act, clean}),
     view === 'wisdom'  && e(Wisdom,   {
       onBack: () => setView('home'),
