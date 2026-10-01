@@ -825,6 +825,13 @@ button:disabled{opacity:0.35;cursor:not-allowed}
   color:#BDB9B2;
   flex-shrink:0;
 }
+.sealed-check-btn{
+  border:none;background:transparent;padding:0;cursor:pointer;
+  font:inherit;color:inherit;
+  transition:transform 0.3s var(--out-expo), opacity 0.3s;
+}
+.sealed-check-btn:active{transform:scale(0.85)}
+.sealed-row.today .sealed-text{color:var(--ink-soft)}
 .sealed-meta{
   display:flex;align-items:center;gap:8px;
   flex-shrink:0;margin-left:auto;
@@ -6034,7 +6041,7 @@ const Onboarding = ({onComplete}) => {
    ════════════════════════════════════════════════ */
 const Dashboard = ({
   data, onNav, todayActions, actionStates, actionSealedAt, carriedStates, onToggle, onNameAction,
-  onMorning, onEvening, onLesson, onSaveGoal,
+  onMorning, onEvening, onLesson, onSaveGoal, onUnseal,
   insight, morningDone, eveningDone, lessonRead,
   currentDay, con, act, clean, liveStreak,
   todayPractice, todayLesson, todayRituals
@@ -6341,7 +6348,9 @@ const Dashboard = ({
               text,
               day: ci.day || '?',
               date: ci.date || '',
-              at: times[i] || null
+              at: times[i] || null,
+              slot: i,
+              isToday: ci.date === todayISO()
             });
           }
         });
@@ -6364,9 +6373,16 @@ const Dashboard = ({
 
       return div({className:'m6'},
         div({className:'sealed-eye'}, 'completed'),
-        ...allSealed.map(({text, day, at}, idx) =>
-          div({key:idx, className:'sealed-row'},
-            div({className:'sealed-check'}, '✓'),
+        ...allSealed.map(({text, day, at, slot, isToday}, idx) =>
+          div({key:idx, className:`sealed-row ${isToday ? 'today' : ''}`},
+            isToday
+              ? btn({
+                  className:'sealed-check sealed-check-btn',
+                  type:'button',
+                  'aria-label':'Unseal — move back to today',
+                  onClick: () => { haptic(6); onUnseal && onUnseal(slot); }
+                }, '✓')
+              : div({className:'sealed-check'}, '✓'),
             div({className:'sealed-text'}, text),
             div({className:'sealed-meta'},
               at && span({className:'sealed-time'}, fmtTime(at)),
@@ -9251,10 +9267,22 @@ const App = () => {
 
   const persist = d => { setData(d); db(d); };
 
+  // Midnight clock — re-evaluate today's date so the app rolls over to the
+  // next day even when it has been left open (PWA) across midnight.
+  const [todayKey, setTodayKey] = useState(todayISO());
+  useEffect(() => {
+    const tick = () => { const t = todayISO(); setTodayKey(k => (k === t ? k : t)); };
+    const id = setInterval(tick, 60 * 1000);
+    const onVis = () => { if(document.visibilityState === 'visible') tick(); };
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('focus', tick);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVis); window.removeEventListener('focus', tick); };
+  }, []);
+
   const currentDay = useMemo(() => {
     if(!data.startDate) return 0;
-    return Math.min(90, Math.max(1, daysBetween(data.startDate, todayISO()) + 1));
-  }, [data.startDate]);
+    return Math.min(90, Math.max(1, daysBetween(data.startDate, todayKey) + 1));
+  }, [data.startDate, todayKey]);
 
   // Auto-seal past days on day rollover
   useEffect(() => {
@@ -9294,7 +9322,7 @@ const App = () => {
     [currentDay]
   );
 
-  const todayCi = (data.checkIns||[]).find(c => c.date === todayISO());
+  const todayCi = (data.checkIns||[]).find(c => c.date === todayKey);
   const morningDone = !!(todayCi && todayCi.morning);
   const eveningDone = !!(todayCi && todayCi.evening);
 
@@ -9382,7 +9410,7 @@ const App = () => {
       sealedAt: finalSnap.map(() => null),
       carried: carried.slice(0, 3)
     };
-  }, [todayCi, data.actions, data.checkIns]);
+  }, [todayCi, data.actions, data.checkIns, todayKey]);
 
   const todayActions   = practiceState.snap;
   const actionStates   = practiceState.states;
@@ -9418,7 +9446,7 @@ const App = () => {
     const ci = data.checkIns || [];
     if(!ci.length) return 0;
     return (ci.filter(c => c.morning && c.evening).length / ci.length) * 100;
-  }, [data.checkIns]);
+  }, [data.checkIns, todayKey]);
 
   const act   = useMemo(() => {
     const ci = data.checkIns || [];
@@ -9439,7 +9467,7 @@ const App = () => {
       return ev.sabotage === false;
     }).length;
     return (cleanCount / we.length) * 100;
-  }, [data.checkIns]);
+  }, [data.checkIns, todayKey]);
 
   const identityScore = useMemo(
     () => Math.round(Math.min(100, (act*0.4) + (clean*0.3) + (con*0.3))),
@@ -9463,7 +9491,7 @@ const App = () => {
       } else break;
     }
     return streak;
-  }, [data.checkIns]);
+  }, [data.checkIns, todayKey]);
 
   // ═══════════════════════════════════════════════════════════════════
   // updatePractice — single atomic update for a practice slot.
@@ -9656,6 +9684,7 @@ const App = () => {
       onEvening: () => setView('evening'),
       onLesson:  () => { markLessonRead(); setView('lesson'); },
       onSaveGoal: g => persist({...data, goal:g}),
+      onUnseal: i => updatePractice(i, {toggleDone: true}),
       insight, morningDone, eveningDone, lessonRead: !!(todayCi && todayCi.lessonRead),
       currentDay, con, act, clean, liveStreak,
       todayPractice, todayLesson, todayRituals
