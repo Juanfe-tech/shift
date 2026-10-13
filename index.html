@@ -6069,7 +6069,7 @@ const Dashboard = ({
 
   const pct = Math.min(100, (currentDay / 90) * 100);
   const remaining = Math.max(0, 90 - currentDay);
-  const chapter = chapterFor(currentDay);
+  const chapter = chapterFor((insight && insight.day) || currentDay);
 
   // Morning state label
   let morningState = 'before sunrise';
@@ -6164,7 +6164,7 @@ const Dashboard = ({
       },
         div({className:'lesson-meta'},
           div({className:'lesson-chapter'}, `chapter ${romanize(chapter.n)} · ${chapter.title.toLowerCase()}`),
-          div({className:'lesson-time'}, `day ${pad(currentDay)}`)
+          div({className:'lesson-time'}, `lesson ${pad(insight.day || currentDay)}`)
         ),
         h2({className:'lesson-title'}, ...renderInsightTitle(insight.text)),
         // If there's a full lesson with quote, surface it in Today
@@ -8141,7 +8141,7 @@ const Log = ({data, onSave, onBack, currentDay}) => {
              "your progress" (4 cumulative rings).
    Dark mind-space backdrop. Mission modal overlay.
    ════════════════════════════════════════════════ */
-const Progress = ({data, onBack, currentDay, identityScore, con, act, clean}) => {
+const Progress = ({data, onBack, currentDay, lessonsCompleted, identityScore, con, act, clean}) => {
   const ci = data.checkIns || [];
   const totalActions = (data.actions || []).length || 1;
 
@@ -8188,8 +8188,8 @@ const Progress = ({data, onBack, currentDay, identityScore, con, act, clean}) =>
   }, [thoughts]);
 
   // ─── Cumulative ring metrics (recomputed here per the new design) ───
-  // Days: simple ratio of currentDay / 90
-  const daysPct = Math.min((currentDay / 90) * 100, 100);
+  // Days: lessons completed / 90 (the earned count)
+  const daysPct = Math.min(((lessonsCompleted || 0) / 90) * 100, 100);
 
   // Consistency: % of days morning was sealed (out of currentDay days elapsed)
   const consistencyPct = useMemo(() => {
@@ -8599,10 +8599,10 @@ const Progress = ({data, onBack, currentDay, identityScore, con, act, clean}) =>
             div({className:'arc-stat-label'}, 'days')
           ),
           div({className:'arc-stat-value'},
-            div({className:'arc-stat-num'}, currentDay),
-            div({className:'arc-stat-unit'}, '/90')
+            div({className:'arc-stat-num'}, lessonsCompleted || 0),
+            div({className:'arc-stat-unit'}, `/${currentDay}`)
           ),
-          div({className:'arc-stat-of'}, 'cumulative')
+          div({className:'arc-stat-of'}, 'completed · of ninety')
         ),
         // Consistency
         div({className:'arc-stat-card'},
@@ -9003,7 +9003,7 @@ const Settings = ({data, onSave, onBack, onReset, onImport}) => {
   const [minutes, setMinutes] = useState(data.minutes || 20);
   const [actions, setActions] = useState([...(data.actions||[])]);
   const [confirmReset, setConfirmReset] = useState(false);
-  const [dayNum, setDayNum] = useState(data.protocolDay || 1);
+  const [dayNum, setDayNum] = useState(data.currentDay || 1);
   const fileRef = useRef(null);
 
   const exportData = () => {
@@ -9075,14 +9075,18 @@ const Settings = ({data, onSave, onBack, onReset, onImport}) => {
 
     SerifLbl({children:'Current day', mb:6, size:14, color:C.inkSoft}),
     p({style:{fontSize:12.5, color:C.muted, lineHeight:1.55, marginBottom:12}},
-      'The day advances at midnight once its lesson is read. If you need to correct where you are, set it here.'),
+      'Days count from the day you started. Lessons are completed one at a time, in order. Correct your day here if needed.'),
     div({style:{display:'flex', alignItems:'center', gap:14, marginBottom:28}},
       btn({onClick:()=>setDayNum(d=>Math.max(1,d-1)), className:'energy-bar', style:{width:52, height:52, fontSize:20}}, '−'),
       div({className:'sf', style:{fontSize:28, fontWeight:300, minWidth:64, textAlign:'center', color:C.ink, letterSpacing:'-0.02em'}},
         'day ', e('em',null, pad(dayNum))),
       btn({onClick:()=>setDayNum(d=>Math.min(90,d+1)), className:'energy-bar', style:{width:52, height:52, fontSize:20}}, '+'),
-      dayNum !== (data.protocolDay || 1) && btn({
-        onClick:()=>onSave({protocolDay:dayNum, protocolDayDate: todayISO()}),
+      dayNum !== (data.currentDay || 1) && btn({
+        onClick:()=>{
+          // start date = today minus (dayNum-1) days, in local time
+          const d = new Date(); d.setDate(d.getDate() - (dayNum - 1));
+          onSave({startDate: `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`});
+        },
         className:'pill pill-primary', style:{marginLeft:'auto', padding:'10px 18px', fontSize:13}
       }, 'Set')
     ),
@@ -9296,40 +9300,32 @@ const App = () => {
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVis); window.removeEventListener('focus', tick); };
   }, []);
 
-  // ─── The day is earned, not given ───
-  // The protocol day only advances past midnight when the current day's
-  // lesson has been read. Unread lesson → the day waits for you.
-  // data.protocolDay      : the day you are on
-  // data.protocolDayDate  : the calendar date that day was opened
-  // data.lessonsRead      : { [day]: ISO date read }   (read record per protocol day)
-  // Back-compat: users without protocolDay start from their calendar day.
+  // ─── Two clocks ───
+  // currentDay  : calendar day of the protocol (days since start). Always moves.
+  // lessonsRead : { [lessonDay]: ISO date read } — the lessons you have actually completed.
+  // lessonDay   : the next unread lesson, capped at currentDay. You never skip content:
+  //               if you are on day 5 with 2 lessons read, today's lesson is lesson 3.
+  // Settings → "Current day" rewrites startDate so the calendar matches reality.
   const currentDay = useMemo(() => {
     if(!data.startDate) return 0;
-    if(data.protocolDay) return Math.min(90, Math.max(1, data.protocolDay));
     return Math.min(90, Math.max(1, daysBetween(data.startDate, todayKey) + 1));
-  }, [data.startDate, data.protocolDay, todayKey]);
+  }, [data.startDate, todayKey]);
 
-  // Rollover: on a new calendar date, advance one day only if the lesson was read.
+  // One-time migration: fold old per-checkIn lessonRead flags into lessonsRead
   useEffect(() => {
-    if(!data.onboarded || !data.startDate) return;
-    const lessonsRead = data.lessonsRead || {};
-    // Initialise once for existing users
-    if(!data.protocolDay){
-      const calDay = Math.min(90, Math.max(1, daysBetween(data.startDate, todayKey) + 1));
-      // Migrate any lessonRead flags already in checkIns
-      const lr = {...lessonsRead};
-      (data.checkIns||[]).forEach(ci => { if(ci.lessonRead && ci.day) lr[ci.day] = ci.date; });
-      persist({...data, protocolDay: calDay, protocolDayDate: todayKey, lessonsRead: lr});
-      return;
-    }
-    if(data.protocolDayDate === todayKey) return;        // same date — nothing to do
-    if(data.protocolDayDate > todayKey) return;          // clock went backwards — ignore
-    const readOn = lessonsRead[data.protocolDay];
-    if(!readOn) return;                                  // lesson unread — the day waits
-    if(readOn >= todayKey) return;                       // read today — tomorrow it advances
-    if(data.protocolDay >= 90) return;
-    persist({...data, protocolDay: data.protocolDay + 1, protocolDayDate: todayKey});
-  }, [data.onboarded, data.startDate, data.protocolDay, data.protocolDayDate, data.lessonsRead, todayKey]);
+    if(!data.onboarded || data.lessonsRead) return;
+    const lr = {};
+    (data.checkIns||[]).forEach(ci => { if(ci.lessonRead && ci.day) lr[ci.day] = ci.date; });
+    persist({...data, lessonsRead: lr});
+  }, [data.onboarded, data.lessonsRead]);
+
+  const lessonsCompleted = useMemo(() => Object.keys(data.lessonsRead || {}).length, [data.lessonsRead]);
+  const lessonDay = useMemo(() => {
+    const lr = data.lessonsRead || {};
+    let d = 1;
+    while(d < currentDay && lr[d]) d++;
+    return Math.max(1, Math.min(d, currentDay || 1));
+  }, [data.lessonsRead, currentDay]);
 
   // Auto-seal past days on day rollover
   useEffect(() => {
@@ -9365,8 +9361,8 @@ const App = () => {
   }, [data.onboarded]);
 
   const insight = useMemo(
-    () => INSIGHTS.find(i => i.day === currentDay) || INSIGHTS[0],
-    [currentDay]
+    () => INSIGHTS.find(i => i.day === lessonDay) || INSIGHTS[0],
+    [lessonDay]
   );
 
   const todayCi = (data.checkIns||[]).find(c => c.date === todayKey);
@@ -9478,7 +9474,7 @@ const App = () => {
   }, [actionsCompleted, data.actions]);
 
   const todayLesson = useMemo(() => {
-    return ((data.lessonsRead||{})[currentDay] || (todayCi && todayCi.lessonRead)) ? 100 : 0;
+    return ((data.lessonsRead||{})[lessonDay]) ? 100 : 0;
   }, [todayCi]);
 
   const todayRituals = useMemo(() => {
@@ -9606,8 +9602,8 @@ const App = () => {
   // Mark today's lesson as read — fires when user opens the deep ink room
   const markLessonRead = () => {
     const lessonsRead = {...(data.lessonsRead || {})};
-    const alreadyDay = !!lessonsRead[currentDay];
-    if(!alreadyDay) lessonsRead[currentDay] = todayISO();
+    const alreadyDay = !!lessonsRead[lessonDay];
+    if(!alreadyDay) lessonsRead[lessonDay] = todayISO();
     if(todayCi && todayCi.lessonRead && alreadyDay) return; // already read
     const date = todayISO();
     const ci = [...(data.checkIns||[])];
@@ -9715,7 +9711,7 @@ const App = () => {
         ...data, ...d,
         onboarded: true,
         startDate: todayISO(),
-        protocolDay: 1, protocolDayDate: todayISO(), lessonsRead: {},
+        lessonsRead: {},
         streak: 0,
         checkIns: [],
         journal: []
@@ -9736,7 +9732,7 @@ const App = () => {
       onLesson:  () => { markLessonRead(); setView('lesson'); },
       onSaveGoal: g => persist({...data, goal:g}),
       onUnseal: i => updatePractice(i, {toggleDone: true}),
-      insight, morningDone, eveningDone, lessonRead: !!((data.lessonsRead||{})[currentDay]) || !!(todayCi && todayCi.lessonRead),
+      insight, morningDone, eveningDone, lessonRead: !!((data.lessonsRead||{})[lessonDay]),
       currentDay, con, act, clean, liveStreak,
       todayPractice, todayLesson, todayRituals
     }),
@@ -9744,7 +9740,7 @@ const App = () => {
       insight: viewingLessonDay
         ? (INSIGHTS.find(i => i.day === viewingLessonDay) || INSIGHTS[0])
         : insight,
-      currentDay: viewingLessonDay || currentDay,
+      currentDay: viewingLessonDay || lessonDay,
       onBack: () => { setViewingLessonDay(null); setView('home'); }
     }),
     view === 'morning' && e(Morning,  {data, onComplete:saveMorning, onBack: () => setView('home')}),
@@ -9760,7 +9756,7 @@ const App = () => {
       onSave: n => persist({...data, notes:[...(data.notes||[]), n]}),
       onDelete: at => persist({...data, notes:(data.notes||[]).filter(x => x.at !== at)})
     }),
-    view === 'progress'&& e(Progress, {data, onBack: () => setView('home'), currentDay, identityScore, con, act, clean}),
+    view === 'progress'&& e(Progress, {data, onBack: () => setView('home'), currentDay, lessonsCompleted, identityScore, con, act, clean}),
     view === 'wisdom'  && e(Wisdom,   {
       onBack: () => setView('home'),
       currentDay,
@@ -9770,7 +9766,7 @@ const App = () => {
       }
     }),
     view === 'settings'&& e(Settings, {
-      data,
+      data: {...data, currentDay},
       onSave: d => { persist({...data, ...d}); setView('home'); },
       onBack: () => setView('home'),
       onReset: () => {
