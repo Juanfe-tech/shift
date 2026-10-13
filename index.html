@@ -9279,10 +9279,40 @@ const App = () => {
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVis); window.removeEventListener('focus', tick); };
   }, []);
 
+  // ─── The day is earned, not given ───
+  // The protocol day only advances past midnight when the current day's
+  // lesson has been read. Unread lesson → the day waits for you.
+  // data.protocolDay      : the day you are on
+  // data.protocolDayDate  : the calendar date that day was opened
+  // data.lessonsRead      : { [day]: ISO date read }   (read record per protocol day)
+  // Back-compat: users without protocolDay start from their calendar day.
   const currentDay = useMemo(() => {
     if(!data.startDate) return 0;
+    if(data.protocolDay) return Math.min(90, Math.max(1, data.protocolDay));
     return Math.min(90, Math.max(1, daysBetween(data.startDate, todayKey) + 1));
-  }, [data.startDate, todayKey]);
+  }, [data.startDate, data.protocolDay, todayKey]);
+
+  // Rollover: on a new calendar date, advance one day only if the lesson was read.
+  useEffect(() => {
+    if(!data.onboarded || !data.startDate) return;
+    const lessonsRead = data.lessonsRead || {};
+    // Initialise once for existing users
+    if(!data.protocolDay){
+      const calDay = Math.min(90, Math.max(1, daysBetween(data.startDate, todayKey) + 1));
+      // Migrate any lessonRead flags already in checkIns
+      const lr = {...lessonsRead};
+      (data.checkIns||[]).forEach(ci => { if(ci.lessonRead && ci.day) lr[ci.day] = ci.date; });
+      persist({...data, protocolDay: calDay, protocolDayDate: todayKey, lessonsRead: lr});
+      return;
+    }
+    if(data.protocolDayDate === todayKey) return;        // same date — nothing to do
+    if(data.protocolDayDate > todayKey) return;          // clock went backwards — ignore
+    const readOn = lessonsRead[data.protocolDay];
+    if(!readOn) return;                                  // lesson unread — the day waits
+    if(readOn >= todayKey) return;                       // read today — tomorrow it advances
+    if(data.protocolDay >= 90) return;
+    persist({...data, protocolDay: data.protocolDay + 1, protocolDayDate: todayKey});
+  }, [data.onboarded, data.startDate, data.protocolDay, data.protocolDayDate, data.lessonsRead, todayKey]);
 
   // Auto-seal past days on day rollover
   useEffect(() => {
@@ -9431,7 +9461,7 @@ const App = () => {
   }, [actionsCompleted, data.actions]);
 
   const todayLesson = useMemo(() => {
-    return (todayCi && todayCi.lessonRead) ? 100 : 0;
+    return ((data.lessonsRead||{})[currentDay] || (todayCi && todayCi.lessonRead)) ? 100 : 0;
   }, [todayCi]);
 
   const todayRituals = useMemo(() => {
@@ -9558,7 +9588,10 @@ const App = () => {
 
   // Mark today's lesson as read — fires when user opens the deep ink room
   const markLessonRead = () => {
-    if(todayCi && todayCi.lessonRead) return; // already read
+    const lessonsRead = {...(data.lessonsRead || {})};
+    const alreadyDay = !!lessonsRead[currentDay];
+    if(!alreadyDay) lessonsRead[currentDay] = todayISO();
+    if(todayCi && todayCi.lessonRead && alreadyDay) return; // already read
     const date = todayISO();
     const ci = [...(data.checkIns||[])];
     let idx = ci.findIndex(c => c.date === date);
@@ -9576,7 +9609,7 @@ const App = () => {
     } else {
       ci[idx] = {...ci[idx], lessonRead: true};
     }
-    persist({...data, checkIns: ci});
+    persist({...data, checkIns: ci, lessonsRead});
   };
 
   const saveMorning = m => {
@@ -9665,6 +9698,7 @@ const App = () => {
         ...data, ...d,
         onboarded: true,
         startDate: todayISO(),
+        protocolDay: 1, protocolDayDate: todayISO(), lessonsRead: {},
         streak: 0,
         checkIns: [],
         journal: []
@@ -9685,7 +9719,7 @@ const App = () => {
       onLesson:  () => { markLessonRead(); setView('lesson'); },
       onSaveGoal: g => persist({...data, goal:g}),
       onUnseal: i => updatePractice(i, {toggleDone: true}),
-      insight, morningDone, eveningDone, lessonRead: !!(todayCi && todayCi.lessonRead),
+      insight, morningDone, eveningDone, lessonRead: !!((data.lessonsRead||{})[currentDay]) || !!(todayCi && todayCi.lessonRead),
       currentDay, con, act, clean, liveStreak,
       todayPractice, todayLesson, todayRituals
     }),
