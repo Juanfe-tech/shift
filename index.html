@@ -3430,6 +3430,9 @@ button:disabled{opacity:0.35;cursor:not-allowed}
 }
 .notes-entry-delete:hover{color:var(--copper-deep, #B5735A)}
 
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+
 /* Search — only present once there are 8+ notes */
 .notes-search{
   display:flex;align-items:center;gap:12px;
@@ -9075,11 +9078,28 @@ const Settings = ({data, onSave, onBack, onReset, onImport}) => {
 
     SerifLbl({children:'Current day', mb:6, size:14, color:C.inkSoft}),
     p({style:{fontSize:12.5, color:C.muted, lineHeight:1.55, marginBottom:12}},
-      'Days count from the day you started. Lessons are completed one at a time, in order. Correct your day here if needed.'),
+      'Days count from the day you started. Lessons are completed one at a time, in order. Tap the number to type a day, then Set.'),
     div({style:{display:'flex', alignItems:'center', gap:14, marginBottom:28}},
       btn({onClick:()=>setDayNum(d=>Math.max(1,d-1)), className:'energy-bar', style:{width:52, height:52, fontSize:20}}, '−'),
-      div({className:'sf', style:{fontSize:28, fontWeight:300, minWidth:64, textAlign:'center', color:C.ink, letterSpacing:'-0.02em'}},
-        'day ', e('em',null, pad(dayNum))),
+      div({className:'sf', style:{fontSize:28, fontWeight:300, textAlign:'center', color:C.ink, letterSpacing:'-0.02em', display:'flex', alignItems:'baseline', gap:6}},
+        'day ',
+        e('input', {
+          type:'number', inputMode:'numeric', min:1, max:90,
+          value: dayNum,
+          onFocus: ev => ev.target.select(),
+          onInput: ev => {
+            const n = parseInt(ev.target.value, 10);
+            if(!isNaN(n)) setDayNum(Math.min(90, Math.max(1, n)));
+          },
+          'aria-label':'Current day',
+          style:{
+            width:58, border:'none', borderBottom:`1px solid ${C.hair}`, background:'transparent', outline:'none',
+            fontFamily:"'Fraunces', serif", fontStyle:'italic', fontWeight:300, fontSize:28,
+            color:C.ink, textAlign:'center', padding:'0 0 2px', letterSpacing:'-0.02em',
+            MozAppearance:'textfield', WebkitAppearance:'none', appearance:'none'
+          }
+        })
+      ),
       btn({onClick:()=>setDayNum(d=>Math.min(90,d+1)), className:'energy-bar', style:{width:52, height:52, fontSize:20}}, '+'),
       dayNum !== (data.currentDay || 1) && btn({
         onClick:()=>{
